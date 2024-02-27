@@ -1,0 +1,135 @@
+```{r}
+library(tidyverse) #tidyverse set of packages and functions
+library(tidymodels)
+library(glmnet) #for Lasso, ridge, and elastic net models 
+library(GGally) #create ggcorr and ggpairs plots
+library(ggcorrplot) #create an alternative to ggcorr plots
+library(MASS) #access to forward and backward selection algorithms
+library(lmtest) #for the dw test
+library(splines) #for nonlinear fitting
+```
+
+```{r}
+bike = read_csv("bike_cleaned-3.csv")
+summary(bike)
+str(bike)
+```
+
+```{r}
+bike = bike %>% mutate(dteday = mdy(dteday))
+#Note that mdy is a lubridate package function
+#You can read more about lubridate here: https://lubridate.tidyverse.org/
+
+bike = bike %>% mutate_if(is.character, as_factor)
+
+bike = bike %>% mutate(hr = as_factor(hr))
+
+```
+
+Question1
+```{r}
+ggpairs(bike, columns = c("count", "windspeed","hum", "atemp", "temp"))
+#Answer: Temp
+```
+
+Question2
+```{r}
+ggplot(bike,aes(x=hr,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=season,y=count)) + geom_boxplot() + theme_bw()
+#Answer: Summer
+```
+
+
+Questions 3-5
+```{r}
+lm_recipe = recipe(count ~ hr, bike) %>%
+  step_dummy(hr)
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(lm_recipe)
+
+lm_fit = fit(lm_wflow, bike)
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+```
+
+#Q3Answer: 23
+#Q4Answer: 0
+#Q5Answer: 17
+
+Question6
+```{r}
+ggplot(bike,aes(x=temp,y=count)) + geom_point() + theme_bw()
+#Answer: As temp increases, count appears to generally increase
+```
+
+Questions7-8
+```{r}
+temp_recipe = recipe(count ~ hr + temp, bike) %>%
+  step_dummy(all_nominal())
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(temp_recipe)
+
+lm_fit = fit(lm_wflow, bike)
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+#Q7Answer: 31.748
+#Q8Answer: 0.5886
+```
+
+Questions9-11
+```{r}
+atemp_recipe = recipe(count ~ temp + atemp, bike) %>%
+  step_dummy(all_nominal())
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(atemp_recipe)
+
+lm_fit = fit(lm_wflow, bike)
+```
+
+```{r}
+summary(lm_fit$fit$fit$fit)
+#Q9Answer: 0.1638
+#Q10Answer: temp ONLY
+#Q11Answer: multicollinearity
+```
+
+
+Questions12-13
+```{r}
+allmod = lm(count ~season + mnth + hr + holiday + weekday + workingday + weathersit + temp + atemp + hum + windspeed, bike) #use the ~. to include all predictors rather than typing them all in
+summary(allmod)
+
+emptymod = lm(count ~1, bike) #use ~1 to build an empty model 
+summary(emptymod)
+```
+```{r}
+backmod = stepAIC(allmod, direction = "backward", trace = TRUE) #trace = TRUE shows how the model is built (which variables are removed)
+summary(backmod)
+```
+#Question12Answer: weekday and holiday
+#Question13Answer: workingday

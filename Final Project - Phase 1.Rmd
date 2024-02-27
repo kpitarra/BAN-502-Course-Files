@@ -1,0 +1,121 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#*Final Project - Phase 1*
+##Kevin Pitarra
+
+```{r, warning=FALSE,message=FALSE}
+library(caret)
+library(tidyverse)
+library(tidymodels)
+library(mice) #package for imputation
+library(VIM) #visualizing missingness
+library(rpart) #for classification trees
+library(rpart.plot) #for plotting trees
+library(RColorBrewer) #better visualization of classification trees
+library(rattle) #better visualization of classification trees
+library(VIM)
+library(naniar) #visualizing missingness
+library(skimr) #alternative way to view dataset summaries
+library(UpSetR)
+library(GGally) #create ggcorr and ggpairs plots
+library(ggcorrplot) #create an alternative to ggcorr plots```
+```
+
+```{r, warning=FALSE,message=FALSE}
+train = read_csv("train.csv")
+
+test = read_csv("test.csv")
+
+sample = read_csv("sample_submission.csv")
+```
+
+
+##Structure/Summary of the Dataset 
+```{r, warning=FALSE,message=FALSE}
+str(train)
+#4 chr variables, 22 numerical variables
+summary(train)
+#we know before that the "failure" variable is what we will eventually try to predict
+```
+
+```{r}
+gg_miss_var(train)
+#we can see there is a lot of missing data
+#How will we assess this?? --> since so many missing datapoints, we have to import... can't just delete
+```
+
+##Handling the Missing Data
+```{r}
+set.seed(1234) 
+import = mice(train, m=5, method='pmm', printFlag=FALSE)
+```
+##Merging Imputed Values Into Dataset
+```{r}
+train_complete = complete(import)
+summary(train_complete)
+```
+
+
+
+##Factor Recoding
+```{r}
+train_complete = train_complete %>% mutate(failure = as_factor(failure))
+train_complete = train_complete %>% mutate(product_code = as_factor(product_code))
+train_complete = train_complete %>% mutate(attribute_0 = as_factor(attribute_0))
+train_complete = train_complete %>% mutate(attribute_1 = as_factor(attribute_1))
+```
+
+##Response Variable
+```{r}
+ggplot(train_complete, aes(x=failure))+ geom_bar()
+```
+
+
+##What variables may be good predictors for "failure"??
+```{r}
+ggpairs(train_complete, columns = c("loading", "measurement_0","measurement_1", "measurement_2", "measurement_3","failure"))
+ggpairs(train_complete, columns = c("measurement_4", "measurement_5","measurement_6", "measurement_7", "measurement_8","failure"))
+ggpairs(train_complete, columns = c("measurement_9", "measurement_10","measurement_11", "measurement_12", "measurement_13","failure"))
+ggpairs(train_complete, columns = c("measurement_14", "measurement_15","measurement_16", "measurement_17","failure"))
+```
+
+
+
+###Important Charts - Possible Predictors
+```{r}
+ggplot(train_complete, aes(x=measurement_1,y=failure))+geom_boxplot()+theme_bw()
+ggplot(train_complete, aes(x=measurement_2,y=failure))+geom_boxplot()+theme_bw()
+ggplot(train_complete, aes(x=measurement_12,y=failure))+geom_boxplot()+theme_bw()
+
+ggplot(train_complete, aes(x=measurement_17,y=failure))+geom_boxplot()+theme_bw()
+ggplot(train_complete, aes(x=loading,y=failure))+geom_boxplot()+theme_bw()
+```
+
+
+```{r}
+ggplot(train_complete, aes(x=product_code, fill = failure)) + geom_bar() + theme_bw()
+
+ggplot(train_complete, aes(x=attribute_0, fill = failure)) + geom_bar() + theme_bw()
+
+ggplot(train_complete, aes(x=attribute_1, fill = failure)) + geom_bar() + theme_bw()
+
+t2 = table(train_complete$failure, train_complete$product_code) #create a table object
+prop.table(t2, margin = 2 ) #crosstab with proportions
+
+t2 = table(train_complete$failure, train_complete$attribute_0) #create a table object
+prop.table(t2, margin = 2 )
+
+t2 = table(train_complete$failure, train_complete$attribute_1) #create a table object
+prop.table(t2, margin = 2 )
+```
+
+##Summary
+
+We can see that not very many of the variables stick out as very conclusive in predicting which product will "fail" or not. However, there was a couple that had the biggest disproportion, and had high correlation, which led me to believe that we should use them as predictors for failure.
+
+The first of these is the variable "loading". This boxplot had the most significant difference between "Yes" and "No" in the failure variable. It was clear in the chart that this variable was a big influencer, especially when comparing with other variables. 
+
+Ultimately though, as we can see in a majority of the boxplots, and with the proportion tables directly above this text, most of the variables did not show any strong correlation to the response variable "failure". This message will be conveyed in my powerpoint.

@@ -1,0 +1,53 @@
+```{r}
+library(tidyverse)
+library(mice) #package for imputation
+library(VIM) #visualizing missingness
+library(skimr) #alternative way to view dataset summaries
+```
+
+```{r}
+grades = read_csv("class-grades.csv")
+```
+
+Question 1
+Answer: Tutorial, TakeHome, Midterm, Final
+
+Question 2
+```{r}
+vim_plot = aggr(grades, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+#Q2: Yes, 1 (Midterm & TakeHome)
+```
+
+Question 3
+```{r}
+grades_rowdel = grades %>% drop_na() 
+
+skim(grades_rowdel)
+#Q3: 89
+```
+
+Questions 4-5
+```{r}
+grades_coldel = grades %>% select(-Tutorial,-Midterm,-TakeHome,-Final) 
+
+skim(grades_coldel)
+#Q4: 2
+#Q5: row-wise
+```
+
+
+Question 6 
+```{r}
+set.seed(123) #sets seed for random number generator
+imp_age = mice(grades, m=5, method='pmm', printFlag=FALSE)
+#m is the number of imputations, 5 is a reasonable value as a default
+#pmm is "predictive mean matching" = imputation method for numeric data
+#printFlag reduces amount of output
+summary(imp_age)
+```
+```{r}
+grades_complete = complete(imp_age) 
+summary(grades_complete)
+#Q6: 68.33
+```
+

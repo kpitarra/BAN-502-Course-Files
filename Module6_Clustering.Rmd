@@ -1,0 +1,104 @@
+```{r, include = FALSE}
+library(tidyverse)
+library(tidymodels)
+library(cluster) 
+library(factoextra) 
+library(dendextend)
+```
+
+```{r}
+trucks = read_csv("trucks-1.csv")
+str(trucks)
+summary(trucks)
+```
+
+```{r}
+kmeans_recipe = recipe(~ Distance + Speeding, trucks) 
+
+trucks_dummy = kmeans_recipe %>% 
+  step_dummy(all_nominal(), one_hot = TRUE) %>%
+  step_scale(all_numeric()) %>%
+  step_center(all_numeric()) 
+
+trucks_dummy = prep(trucks_dummy, trucks) #prepares the recipe
+
+trucks_cleaned = bake(trucks_dummy, trucks) #applies the recipe and yields a data frame
+```
+
+Questions 1-2
+```{r}
+#we have two data frames now, one scaled and dummied and one with just row-wise deletion of missingness
+summary(trucks_cleaned)
+summary(trucks)
+
+#Q1: appear to be in four clusters & Longer distance more likely to speed
+#Q2: 3.156
+```
+
+
+```{r}
+set.seed(1234)
+clusts = 
+  tibble(k = 1:8) %>%
+  mutate(
+    kclust = map(k, ~kmeans(trucks_cleaned, .x)),
+    tidied = map(kclust, tidy),
+    glanced = map(kclust, glance),
+    augmented = map(kclust, augment, trucks)
+  )
+
+clusts
+```
+
+```{r}
+clusters = 
+  clusts %>%
+  unnest(cols = c(tidied))
+
+assignments = 
+  clusts %>% 
+  unnest(cols = c(augmented))
+
+clusterings = 
+  clusts %>%
+  unnest(cols = c(glanced))
+```
+
+Question 3
+```{r}
+p1 = 
+  ggplot(assignments, aes(x = Distance, y = Speeding)) +
+  geom_point(aes(color = .cluster), alpha = 0.8) + 
+  facet_wrap(~ k)
+p1
+
+#Q3: shorter distances in one cluster, longer distances in another cluster
+```
+```{r}
+ggplot(clusterings, aes(k, tot.withinss)) +
+  geom_line() +
+  geom_point()
+```
+
+
+```{r}
+set.seed(1234)
+clusters = kmeans(trucks_cleaned, 8)
+```
+
+Attach cluster to dataset
+```{r}
+trucks = augment(clusters, trucks)
+str(trucks)
+```
+
+Plots
+```{r}
+ggplot(trucks, aes(x=Distance,y=Speeding,color=factor(.cluster))) + geom_point() 
+```
+
+
+#Questions 4-6
+Q4: 4
+Q5: 4
+Q6: all answer choices are true 

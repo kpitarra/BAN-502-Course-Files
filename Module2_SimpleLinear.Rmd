@@ -1,0 +1,70 @@
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+library(lmtest) 
+```
+
+Questions 1-4
+```{r}
+air = airquality
+nrow(airquality)
+ncol(airquality)
+#Q3. True
+#Q4. Ozone
+```
+Questions 5-6
+```{r}
+air2 = air %>% drop_na()
+nrow(air2)
+ncol(air2)
+```
+
+Questions 7-9
+```{r}
+ggpairs(air2)
+ggplot(air2, aes(x=Temp,y=Ozone)) + geom_point(alpha=0.1)
+#Q7.Temp
+#Q8.Day
+#Q9. As temp increases, ozone increases
+```
+
+```{r}
+ggplot(air2, aes(x=Temp,y=Ozone)) + geom_point(alpha=0.1)
+```
+
+Questions 10-12
+```{r}
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") 
+```
+
+
+
+```{r}
+credit_simple_1 = recipe(Ozone ~ Temp, air2) #recipe
+
+lm_wflow_1 = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(credit_simple_1) 
+
+lm_fit_1 = fit(lm_wflow_1, air2)
+```
+
+```{r}
+summary(lm_fit_1$fit$fit$fit)
+```
+
+```{r}
+confint(lm_fit$fit$fit$fit)
+```
+
+```{r}
+testdata = data.frame(Distance_to_Transit = c(80))
+predict(lm_fit, new_data = testdata)
+
+2.4391*80 - 147.6461
+```
+

@@ -1,0 +1,251 @@
+Libraries  
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(e1071) #often needed for various statistical tasks
+library(ROCR) #for threshold selction
+```
+
+Load data from the CSData.csv file.  
+```{r}
+parole = read_csv("parole.csv")
+```
+
+Factor Conversion
+Factor conversion. Convert the response variable SeriousDlqin2yrs.
+```{r}
+parole = parole %>% mutate(male = as_factor(male)) %>% 
+  mutate(male = fct_recode(male, "female" = "0", "male" = "1" )) 
+
+parole = parole %>% mutate(race = as_factor(race)) %>% 
+  mutate(race = fct_recode(race, "white" = "1", "other" = "2" )) 
+
+parole = parole %>% mutate(state = as_factor(state)) %>% 
+  mutate(state = fct_recode(state, "Other" = "1", "Kentucky" = "2", "Louisiana" = "3", "Virginia" = "4" )) 
+
+parole = parole %>% mutate(crime = as_factor(crime)) %>% 
+  mutate(crime = fct_recode(crime, "other" = "1", "larceny" = "2", "drug" = "3", "driving" = "4" )) 
+
+parole = parole %>% mutate(multiple.offenses = as_factor(multiple.offenses)) %>% 
+  mutate(multiple.offenses = fct_recode(multiple.offenses, "multiple offenses" = "1", "none" = "0" )) 
+
+parole = parole %>% mutate(violator = as_factor(violator)) %>% 
+  mutate(violator = fct_recode(violator, "Yes" = "violation", "No" = "no violation" )) 
+```
+
+Question 1
+```{r}
+violator = filter(parole, violator == "Yes" )
+#Q1. 78
+```
+
+
+Question 2
+```{r}
+set.seed(12345)
+parole_split = initial_split(parole, prop = 0.70, strata = violator)
+train = training(parole_split)
+test = testing(parole_split)
+
+levels(train$violator)
+
+```
+
+Order
+```{r}
+train = train %>% mutate(violator = fct_relevel(violator, c("No","Yes")))
+levels(train$violator)
+
+train = train %>% mutate(male = fct_relevel(male, c("male","female")))
+levels(train$male)
+
+train = train %>% mutate(state = fct_relevel(state, c("Kentucky", "Louisiana", "Virginia", "Other" )))
+levels(train$state)
+
+train = train %>% mutate(crime = fct_relevel(crime, c("larceny", "drug", "driving", "other" )))
+levels(train$crime)
+
+
+```
+
+Questions 3-5
+```{r}
+ggplot(parole, aes(x=male, fill = violator)) + geom_bar() + theme_bw()
+
+t2 = table(parole$violator, parole$male) #create a table object
+prop.table(t2, margin = 2 ) #crosstab with proportions
+
+t3 = table(parole$violator, parole$state) #create a table object
+prop.table(t3, margin = 2 ) #crosstab with proportions
+
+t4 = table(parole$violator, parole$max.sentence) #create a table object
+prop.table(t4, margin = 2 ) #crosstab with proportions
+
+#Q3. false
+#Q4. true
+#Q5. true
+```
+
+Questions 6-7 
+```{r}
+state_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+state_recipe = recipe(violator ~ state, train) %>%
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted  
+
+logreg_wf = workflow() %>%
+  add_recipe(state_recipe) %>% 
+  add_model(state_model)
+
+parole_fit = fit(logreg_wf, train)
+
+#Q6. Other
+#Q7. 278.95
+```
+
+```{r}
+summary(parole_fit$fit$fit$fit)
+```
+
+
+Question 8 
+```{r}
+train_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+train_recipe = recipe(violator ~ state + multiple.offenses + race, train) %>%
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted  
+
+logreg_wf = workflow() %>%
+  add_recipe(train_recipe) %>% 
+  add_model(train_model)
+
+train_fit = fit(logreg_wf, train)
+
+#Q8. state, multiple offenses, race
+```
+
+```{r}
+summary(train_fit$fit$fit$fit)
+```
+
+Question 9 
+```{r}
+newdata = data.frame(state = "Louisiana", race = "white", multiple.offenses = "multiple offenses")
+predict(train_fit, newdata, type="prob")
+
+#Q9. 0.33
+```
+
+Question 10
+```{r}
+predictions = predict(train_fit, train, type="prob")[2] #develop predicted probabilities
+head(predictions)
+```
+```{r}
+#Change this next line to the names of your predictions and the response variable in the training data frame
+ROCRpred = prediction(predictions, train$violator) 
+
+###You shouldn't need to ever change the next two lines:
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+```
+
+```{r}
+#Determine threshold to balance sensitivity and specificity
+#DO NOT modify this code
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf, ROCRpred))
+
+#Q10. 0.2016
+```
+```{r}
+#confusion matrix
+#The "No" and "Yes" represent the actual values
+#The "FALSE" and "TRUE" represent our predicted values
+t1 = table(train$violator,predictions > 0.2015788)
+t1
+```
+Question 11
+Calculate accuracy  
+```{r}
+(t1[1,1]+t1[2,2])/nrow(train)
+
+#Q11. 0.841
+```
+Question 12
+Sensitivity
+```{r}
+36/(18+36)
+
+#Q12. 0.667
+```
+
+Question 13
+Best Accuracy 
+```{r}
+t2 = table(train$violator,predictions > 0.2)
+t3 = table(train$violator,predictions > 0.3)
+t4 = table(train$violator,predictions > 0.4)
+t5 = table(train$violator,predictions > 0.5)
+```
+
+Accuracy Calculation
+```{r}
+(t2[1,1]+t2[2,2])/nrow(train)
+(t3[1,1]+t3[2,2])/nrow(train)
+(t4[1,1]+t4[2,2])/nrow(train)
+(t5[1,1]+t5[2,2])/nrow(train)
+
+#Q13. 0.5
+```
+
+Question 14
+
+```{r}
+test_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+test_recipe = recipe(violator ~ state + multiple.offenses + race, test) %>%
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted  
+
+logreg_wf = workflow() %>%
+  add_recipe(test_recipe) %>% 
+  add_model(test_model)
+
+test_fit = fit(logreg_wf, test)
+
+#Q8. state, multiple offenses, race
+```
+
+```{r}
+summary(test_fit$fit$fit$fit)
+```
+
+
+
+```{r}
+predictions = predict(train_fit, test, type="prob")[2] #develop predicted probabilities
+head(predictions)
+```
+
+```{r}
+t6 = table(test$violator,predictions > 0.5)
+```
+
+```{r}
+(t6[1,1]+t6[2,2])/nrow(test)
+
+#Q14. 0.897
+```
